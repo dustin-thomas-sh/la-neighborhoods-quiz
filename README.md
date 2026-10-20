@@ -1,10 +1,10 @@
 # LA Neighborhoods — Learn & Quiz
 
-Interactive map to learn the 318 neighborhoods of Los Angeles County (including independent cities like Santa Monica, Culver City, Beverly Hills, and West Hollywood), then quiz yourself.
+Interactive map to learn the 270 neighborhoods of Los Angeles County (including independent cities like Santa Monica, Culver City, Beverly Hills, and West Hollywood), then quiz yourself.
 
 ## Modes
 
-- **Learn** — hover and click neighborhoods, browse a searchable list, filter by region. Dots show your quiz mastery.
+- **Learn** — hover and click neighborhoods for population, density, income, age, ethnicity and a short description; browse a searchable list; filter by region. Dots show your quiz mastery.
 - **Find it** — a name is shown; click the right polygon on the map.
 - **Name it** — a polygon is highlighted; pick the name from four choices.
 

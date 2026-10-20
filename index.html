@@ -45,6 +45,18 @@
   .choices button.bad{border-color:var(--bad);background:#3a1620}
   #feedback{margin-top:10px;font-size:14px;min-height:20px}
   #feedback.good{color:var(--good)} #feedback.bad{color:var(--bad)}
+  #fact{font-size:13px;line-height:1.45;color:#cfd5e6;margin-top:8px;border-left:3px solid var(--line);padding-left:8px}
+  #fact:empty{display:none}
+  #learnPanel{max-height:55%;overflow:auto}
+  .blurb{font-size:13px;line-height:1.45;margin:8px 0;color:#cfd5e6}
+  .stats2{margin-top:6px}
+  .st{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:3px 0;border-bottom:1px dashed var(--line)}
+  .st span{color:var(--muted)} .st b{text-align:right}
+  .eth{margin-top:8px}
+  .bar{display:flex;align-items:center;gap:8px;font-size:12px;margin:2px 0}
+  .bar span{width:44px;color:var(--muted)} .bar em{font-style:normal;color:var(--muted);width:40px;text-align:right}
+  .track{flex:1;height:8px;background:#0c0f1a;border-radius:3px;overflow:hidden} .track i{display:block;height:100%;background:var(--accent)}
+  .src{font-size:12px;margin-top:8px} .src a{color:var(--accent)}
   #list{flex:1;overflow:auto;padding:0 12px 12px}
   #list input{width:100%;padding:8px;border-radius:6px;border:1px solid var(--line);background:#0c0f1a;color:var(--text);margin:10px 0 8px;font-size:14px}
   .row{display:flex;align-items:center;gap:8px;padding:6px 4px;border-radius:6px;cursor:pointer;font-size:14px}
@@ -102,6 +114,7 @@
         <div id="sub"></div>
         <div class="choices" id="choices"></div>
         <div id="feedback"></div>
+        <div id="fact"></div>
         <div class="stats">
           <div>Score <b id="score">0</b>/<span id="asked">0</span></div>
           <div>Streak <b id="streak">0</b></div>
@@ -132,14 +145,14 @@
 (() => {
 const REGION_LABEL = {
   'westside':'Westside','central-la':'Central L.A.','eastside':'Eastside','northeast-la':'Northeast L.A.','south-la':'South L.A.',
-  'san-fernando-valley':'San Fernando Valley','harbor':'Harbor','beach-cities':'Beach Cities','south-bay':'South Bay','verdugos':'Verdugos',
-  'southeast':'Southeast','san-gabriel-valley':'San Gabriel Valley','south-county':'South County','pomona-valley':'Pomona Valley',
-  'santa-monica-mountains':'Santa Monica Mtns','northwest-county':'Northwest County','north-county':'North County','antelope-valley':'Antelope Valley','angeles-forest':'Angeles Forest'
+  'san-fernando-valley':'San Fernando Valley','harbor':'Harbor','south-bay':'South Bay','verdugos':'Verdugos',
+  'southeast':'Southeast','san-gabriel-valley':'San Gabriel Valley','pomona-valley':'Pomona Valley',
+  'santa-monica-mountains':'Santa Monica Mtns','northwest-county':'Northwest County','antelope-valley':'Antelope Valley','angeles-forest':'Angeles Forest'
 };
 const REGION_ORDER = Object.keys(REGION_LABEL);
 const PRESETS = {
-  core: ['westside','central-la','eastside','northeast-la','south-la','san-fernando-valley','harbor','beach-cities','south-bay','verdugos'],
-  westside: ['westside','beach-cities'],
+  core: ['westside','central-la','eastside','northeast-la','south-la','san-fernando-valley','harbor','south-bay','verdugos'],
+  westside: ['westside'],
   all: REGION_ORDER.slice()
 };
 const COLORS = ['#ff6b6b','#ffb84d','#ffe66d','#8ce99a','#38d9a9','#66d9e8','#74c0fc','#9775fa','#f783ac','#e599f7','#a9e34b','#ffa94d','#63e6be','#4dabf7','#da77f2','#ff8787','#ffd43b','#b197fc','#69db7c'];
@@ -180,7 +193,8 @@ function inPool(f){ const p=f.properties; return state.regions.has(p.r) && (!sta
 function masteryOf(id){ const m=state.mastery[id]; if(!m||!m.a) return null; return m.c/m.a; }
 function masteryColor(id){ const v=masteryOf(id); if(v===null) return '#555'; return v>=0.8?'#36c48a':v>=0.5?'#ffb84d':'#ff5c6c'; }
 
-fetch('neighborhoods.json').then(r=>r.json()).then(data=>{
+Promise.all([fetch('neighborhoods.json').then(r=>r.json()), fetch('info.json').then(r=>r.json()).catch(()=>({}))]).then(([data, info])=>{
+  state.info = info || {};
   state.features = data.features.map((f,i)=>{ f.id=i; return f; });
   geo = L.geoJSON(data, {
     style: baseStyle,
@@ -221,9 +235,21 @@ document.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>{
 function onPoolChange(){ state.pool=state.features.filter(inPool); refreshStyles(); renderList(); if(state.mode!=='learn') startRound(); }
 
 // ---------- learn ----------
+const fmt=n=>n==null?null:Number(n).toLocaleString('en-US');
+function firstSentences(s,n){ if(!s) return ''; const parts=s.match(/[^.!?]+[.!?]+(\s|$)/g)||[s]; return parts.slice(0,n).join('').trim(); }
 function showDetail(f){
-  const p=f.properties, m=state.mastery[f.id];
-  $('#detail').innerHTML=`<div class="name">${p.n}</div><div><span class="sw" style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${regionColor(p.r)};margin-right:6px"></span>${REGION_LABEL[p.r]}</div><div class="muted">${TYPE_LABEL[p.t]||p.t}</div>${m?`<div class="muted">Quiz record: ${m.c}/${m.a} correct</div>`:''}`;
+  const p=f.properties, m=state.mastery[f.id], I=(state.info||{})[p.n]||{};
+  const st=(l,v)=>v==null?'':`<div class="st"><span>${l}</span><b>${v}</b></div>`;
+  const pop=I.pop2008||I.pop2000;
+  let eth='';
+  if(I.ethnicity){ eth='<div class="eth">'+['Latino','White','Asian','Black','Other'].filter(k=>I.ethnicity[k]!=null).map(k=>`<div class="bar"><span>${k}</span><div class="track"><i style="width:${Math.min(100,I.ethnicity[k])}%"></i></div><em>${I.ethnicity[k]}%</em></div>`).join('')+(I.diversity?`<div class="muted" style="font-size:12px;margin-top:4px">${I.diversity} (county comparison)</div>`:'')+'</div>'; }
+  const hasStats=I.income!=null||I.sqmi!=null;
+  $('#detail').innerHTML=`<div class="name">${p.n}</div>
+    <div><span class="sw" style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${regionColor(p.r)};margin-right:6px"></span>${REGION_LABEL[p.r]} <span class="muted">· ${TYPE_LABEL[p.t]||p.t}</span></div>
+    ${I.blurb?`<p class="blurb">${I.blurb}</p>`:''}
+    ${hasStats?`<div class="stats2">${st('Population',pop?fmt(pop)+(I.pop2008?' <span class="muted">(2008 est.)</span>':' <span class="muted">(2000)</span>'):null)}${st('Area',I.sqmi!=null?I.sqmi+' sq mi':null)}${st('Density',I.density?fmt(I.density)+' / sq mi':null)}${st('Median household income',I.income?'$'+fmt(I.income):null)}${st('Median age',I.medianAge)}${st('Four-year degree',I.degreePct!=null?I.degreePct+'%':null)}${st('Foreign born',I.foreignPct!=null?I.foreignPct+'%':null)}${st('Top origins',I.origins&&I.origins.length?I.origins.join(', '):null)}${st('Household size',I.hhSize)}</div>${eth}`:''}
+    ${m?`<div class="muted" style="margin-top:6px">Your quiz record: ${m.c}/${m.a} correct</div>`:''}
+    <div class="src">${I.wiki?`<a href="${I.wiki}" target="_blank" rel="noopener">Wikipedia</a>`:''}${I.wiki&&I.lat?' · ':''}${I.lat?`<a href="${I.lat}" target="_blank" rel="noopener">LA Times profile</a>`:''}${hasStats?'<div class="muted">Stats: LA Times Mapping L.A. (2000 Census, 2008 estimates)</div>':''}</div>`;
 }
 function renderList(){
   const q=($('#search').value||'').toLowerCase();
@@ -272,8 +298,8 @@ function updateStats(){
 }
 function nextQ(){
   if(state.asked>=state.roundLen) return endRound();
-  state.locked=false; refreshStyles(); $('#feedback').textContent=''; $('#feedback').className='';
-  state.q=pickNext();
+  state.locked=false; refreshStyles(); $('#feedback').textContent=''; $('#feedback').className=''; $('#fact').textContent=''; $('#skip').textContent='Skip';
+  clearTimeout(state.timer); state.q=pickNext();
   const p=state.q.properties;
   if(state.mode==='find'){
     $('#prompt').textContent=p.n; $('#sub').textContent=`Click it on the map · ${REGION_LABEL[p.r]} · ${state.asked+1} of ${state.roundLen}`;
@@ -307,9 +333,12 @@ function answer(f, btn, layer){
   if(btn){ btn.classList.add(ok?'good':'bad'); [...$('#choices').children].forEach(b=>{ if(b.textContent===state.q.properties.n) b.classList.add('good'); b.disabled=true; }); }
   if(state.mode==='find') qLayer.bindTooltip(state.q.properties.n,{permanent:true,direction:'center',className:'nb'}).openTooltip();
   updateStats();
-  setTimeout(()=>{ qLayer.unbindTooltip(); nextQ(); }, ok?900:2200);
+  const I=(state.info||{})[state.q.properties.n]; $('#fact').textContent = I&&I.blurb ? firstSentences(I.blurb,2) : '';
+  $('#skip').textContent='Next ▸';
+  state.timer=setTimeout(()=>{ qLayer.unbindTooltip(); nextQ(); }, ok?3500:5500);
 }
-$('#skip').onclick=()=>{ if(state.mode==='learn'||state.locked||!state.q) return; answer({id:-1,properties:{n:'skipped'}}, null, null); };
+$('#skip').onclick=()=>{ if(state.mode==='learn'||!state.q) return; if(state.locked){ if($('#end').style.display!=='none') return; clearTimeout(state.timer); state.layersById.get(state.q.id).unbindTooltip(); nextQ(); return; } answer({id:-1,properties:{n:'skipped'}}, null, null); };
+document.addEventListener('keydown', e=>{ if((e.key==='Enter'||e.key===' ')&&state.mode!=='learn'&&state.locked&&e.target.tagName!=='INPUT'&&e.target.tagName!=='SELECT'){ e.preventDefault(); $('#skip').click(); } });
 $('#roundLen').onchange=e=>{ state.roundLen=+e.target.value; startRound(); };
 $('#again').onclick=startRound;
 function endRound(){
